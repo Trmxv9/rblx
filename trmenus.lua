@@ -43,6 +43,12 @@ local Network = ReplicatedStorage:WaitForChild("Source"):WaitForChild("Network")
 local RemoteFunctions = Network:WaitForChild("RemoteFunctions")
 local RemoteEvents = Network:WaitForChild("RemoteEvents")
 
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local getgenv = getfenv().getgenv
+
+local Flags: {[string]: {["CurrentValue"]: any}} = Rayfield.Flags
+
 -- Função de teleporte
 local function teleport(position)
     if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
@@ -55,7 +61,7 @@ end
 -- Função de manuseio de conexões de eventos
 local function HandleConnection(connection, flag)
     connection:Connect(function(...)
-        if Rayfield.Flags[flag] and Rayfield.Flags[flag].CurrentValue then
+        if Flags[flag] and Flags[flag].CurrentValue then
             connection(...)
         end
     end)
@@ -64,60 +70,58 @@ end
 
 -- Functions 
 
+local function SellInventory()
+	local SellEnabled = Flags.Sell.CurrentValue
+	Player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 
-local function SellAllInventory()
-    Player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+	local Capacity: TextLabel = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity
 
-    local Capacity = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity
+	local Inventory: {[string]: {["Attributes"]: {["Weight"]: number}}} = RemoteFunctions.Player:InvokeServer({
+		Command = "GetInventory"
+	})
 
-    local Inventory = RemoteFunctions.Player:InvokeServer({
-        Command = "GetInventory"
-    })
+	local AnyObjects = false
 
-    local AnyObjects = false
+	for _, Object in Inventory do
+		if not Object.Attributes.Weight then
+			continue
+		end
 
-    for _, Object in pairs(Inventory) do
-        if not Object.Attributes.Weight then
-            continue
-        end
+		AnyObjects = true
+		break
+	end
 
-        AnyObjects = true
-        break
-    end
+	if not AnyObjects then
+		task.wait(5)
+		return
+	end
 
-    if not AnyObjects then
-        task.wait(5)
-        return
-    end
+	for i,v: TextLabel in workspace.Map.Islands:GetDescendants() do
+		if v.Name ~= "Title" or not v:IsA("TextLabel") or v.Text ~= "Merchant" then
+			continue
+		end
 
-    for _, v in ipairs(workspace.Map.Islands:GetDescendants()) do
-        if v.Name ~= "Title" or not v:IsA("TextLabel") or v.Text ~= "Merchant" then
-            continue
-        end
+		local Merchant: Model = v.Parent.Parent
 
-        local Merchant = v.Parent.Parent
+		local PreviousPosition = Player.Character:GetPivot()
 
-        local PreviousPosition = Player.Character:GetPivot()
+		local PreviousText = Capacity.Text
 
-        local PreviousText = Capacity.Text
+		repeat
+			Player.Character:PivotTo(Merchant:GetPivot())
 
-        repeat
-            Player.Character:PivotTo(Merchant:GetPivot())
+			RemoteEvents.Merchant:FireServer({
+				Command = "SellAllTreasures",
+				Merchant = Merchant
+			})
 
-            RemoteEvents.Merchant:FireServer({
-                Command = "SellAllTreasures",
-                Merchant = Merchant
-            })
+			task.wait(0.1)
+		until Capacity.Text ~= PreviousText or Flags.Sell.CurrentValue ~= SellEnabled
 
-            task.wait(0.1)
-        until Capacity.Text ~= PreviousText
+		Player.Character:PivotTo(PreviousPosition)
 
-        Player.Character:PivotTo(PreviousPosition)
-
-        break
-    end
-
-    -- Notificação após vender tudo
+		break
+	end
     Rayfield:Notify({
         Title = "💰 • Sell ​​all your inventory",
         Content = "You sold all your items!",
@@ -187,7 +191,7 @@ IslandsTab:CreateSection("🌠 • Meteor Island Teleport")
 local PreviousLocation
 
 local function MeteorIslandTeleport(Meteor: Model?)
-    if Meteor.Name ~= "Meteor Island" or not Rayfield.Flags.Meteor.CurrentValue then
+    if Meteor.Name ~= "Meteor Island" or not Flags.Meteor.CurrentValue then
         return
     end
     
@@ -215,7 +219,7 @@ IslandsTab:CreateToggle({
 IslandsTab:CreateSection("✨ • Lunar Clouds Teleport")
 
 local function LunarCloudsTeleport(Lunar: Model?)
-    if Lunar.Name ~= "Lunar Clouds" or not Rayfield.Flags.LunarClouds.CurrentValue then
+    if Lunar.Name ~= "Lunar Clouds" or not Flags.LunarClouds.CurrentValue then
         return
     end
 
@@ -250,7 +254,7 @@ AutomationTab:CreateToggle({
     Flag = "Dig",
 	Callback = function(Value)
 		task.spawn(function()
-			while Rayfield.Flags.Dig.CurrentValue and task.wait() do
+			while Flags.Dig.CurrentValue and task.wait() do
 				local DigMinigame = Player.PlayerGui.Main:FindFirstChild("DigMinigame")
 
 				if not DigMinigame then
@@ -261,7 +265,7 @@ AutomationTab:CreateToggle({
 			end
 		end)
 		
-		while Rayfield.Flags.Dig.CurrentValue and task.wait() do
+		while Flags.Dig.CurrentValue and task.wait() do
 			if not Player.Character:FindFirstChildOfClass("Tool") then
 				continue
 			end
@@ -280,14 +284,14 @@ AutomationTab:CreateToggle({
 	end,
 })
 
-AutomationTab:CreateSection("🤖 • Auto Click")
+AutomationTab:CreateSection("🤖 • Auto Farm")
 
 AutomationTab:CreateToggle({
     Name = "🕹️ • Auto Minigame | 100% Success",
     CurrentValue = false,
     Flag = "PileMinigame",
     Callback = function(Value)    
-        while Rayfield.Flags.PileMinigame.CurrentValue and task.wait() do
+        while Flags.PileMinigame.CurrentValue and task.wait() do
             if not Player.Character:FindFirstChildOfClass("Tool") then
                 continue
             end
@@ -328,7 +332,7 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "CreatePiles",
     Callback = function(Value)    
-        while Rayfield.Flags.CreatePiles.CurrentValue and task.wait() do    
+        while Flags.CreatePiles.CurrentValue and task.wait() do    
             if Player:GetAttribute("PileCount") ~= 0 then
                 continue
             end
@@ -346,6 +350,125 @@ AutomationTab:CreateToggle({
     end,
 })
 
+local function RandomVector(Size: Vector3, Position: Vector3)
+
+	local X = Position.X + math.random(-Size.X / 2, Size.X / 2)
+	local Z = Position.Z + math.random(-Size.Z / 2, Size.Z / 2)
+
+	return Vector3.new(X, Position.Y, Z)
+end
+
+local CanWalk = true
+
+AutomationTab:CreateToggle({
+	Name = "🔄 • Auto Walk After Dig",
+	CurrentValue = false,
+	Flag = "DigWalk",
+	Callback = function(Value)
+		local Visualizer = workspace:FindFirstChild("FrostByteVisualizer")
+		
+		while Flags.DigWalk.CurrentValue and task.wait() do	
+			if Player:GetAttribute("IsDigging") then
+				continue
+			end
+			
+			local Character = Player.Character
+			
+			local WalkZoneSizeFlag = Flags.ZoneSize.CurrentValue
+			
+			local ZoneSize = Vector3.new(WalkZoneSizeFlag, 1, WalkZoneSizeFlag)
+			
+			local Visualizer = workspace:FindFirstChild("FrostByteVisualizer")
+			
+			if not Visualizer then
+				Visualizer = Instance.new("Part")
+				Visualizer.Size = ZoneSize
+				Visualizer.Position = Character:GetPivot().Position - Vector3.yAxis * Character:GetExtentsSize().Y / 1.05
+				Visualizer.Anchored = true
+				Visualizer.Color = Color3.fromRGB(75, 255, 75)
+				Visualizer.CanCollide = false
+				Visualizer.CanQuery = false
+				Visualizer.Material = Enum.Material.SmoothPlastic
+				Visualizer.Transparency = 0.4
+				Visualizer.CastShadow = false
+				Visualizer.Name = "FrostByteVisualizer"
+				Visualizer.Parent = workspace
+			end
+			
+			local Humanoid: Humanoid = Character.Humanoid
+			
+			local FoundPile = false
+
+			for _, Pile: Model in workspace.Map.TreasurePiles:GetChildren() do
+				if Pile:GetAttribute("Owner") ~= Player.UserId then
+					continue
+				end
+				
+				FoundPile = true
+				
+				for _, Descendant: BasePart in Pile:GetDescendants() do
+					if not Descendant:IsA("BasePart") then
+						continue
+					end
+					
+					Descendant.CanCollide = false
+				end
+
+				Humanoid:MoveTo(Pile:GetPivot().Position)
+				break
+			end
+			
+			if FoundPile then
+				continue
+			end
+			
+			if CanWalk then
+				Humanoid:MoveTo(RandomVector(ZoneSize, Visualizer.Position))
+				CanWalk = false
+
+				Humanoid.MoveToFinished:Once(function()
+					CanWalk = true
+				end)
+			end
+		end
+		
+		local Visualizer = workspace:FindFirstChild("FrostByteVisualizer")
+		
+		if Visualizer then
+			Visualizer:Destroy()
+		end
+	end,
+})
+
+AutomationTab:CreateSlider({
+	Name = "🟩 • Auto Walk Zone Size",
+	Range = {5, 100},
+	Increment = 1,
+	Suffix = "Studs",
+	CurrentValue = 20,
+	Flag = "ZoneSize",
+	Callback = function()end,
+})
+
+AutomationTab:CreateSection("⭐ • XP")
+
+AutomationTab:CreateToggle({
+	Name = "🆙 • Auto EXP Dupe",
+	CurrentValue = false,
+	Flag = "EXPDupe",
+	Callback = function(Value)
+		while Flags.EXPDupe.CurrentValue and task.wait() do
+			RemoteFunctions.Shop:InvokeServer({
+				Command = "Buy",
+				Type = "Item",
+				Product = "Biodegradable Shovel",
+				Amount = 5
+			})
+		end
+	end,
+})
+
+
 AutomationTab:CreateSection("🎒 • Items")
 
 AutomationTab:CreateToggle({
@@ -353,7 +476,7 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "OpenMagnet",
     Callback = function(Value)
-        while Rayfield.Flags.OpenMagnet.CurrentValue and task.wait() do
+        while Flags.OpenMagnet.CurrentValue and task.wait() do
             local count = 0
             for _, Tool in ipairs(Player.Backpack:GetChildren()) do
                 if Tool.Name:find("Magnet Box") then
@@ -378,7 +501,7 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "Salary",
     Callback = function(Value)
-        while Rayfield.Flags.Salary.CurrentValue and task.wait() do
+        while Flags.Salary.CurrentValue and task.wait() do
             local TierTimers = RemoteFunctions.TimeRewards:InvokeServer({
                 Command = "GetSessionTimers"
             })
@@ -406,19 +529,41 @@ AutomationTab:CreateToggle({
     end,
 })
 
+
+AutomationTab:CreateToggle({
+	Name = "💰 • Auto Sell Inventory at Max Capacity",
+	CurrentValue = false,
+	Flag = "Sell",
+	Callback = function(Value)	
+		while Flags.Sell.CurrentValue and task.wait() do
+			local Capacity: TextLabel = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity
+			local Current = tonumber(Capacity.Text:split("(")[2]:split("/")[1])
+			local Max = tonumber(Capacity.Text:split(")")[1]:split("/")[2])
+
+			if Current < Max then
+				continue
+			end
+			
+			SellInventory()
+		end
+	end,
+})
+
+
+
 -- Inventory Section
 local Inventory2 = Window:CreateTab("Inventory", "backpack")
 
 Inventory2:CreateSection("💰 • Shop")
 
-if not Rayfield.Flags.MagnetBoxes then
-    Rayfield.Flags.MagnetBoxes = {CurrentValue = 1}
+if not Flags.MagnetBoxes then
+    Flags.MagnetBoxes = {CurrentValue = 1}
 end
 
 Inventory2:CreateButton({
     Name = "🧲 • Purchase Magnet Box(es)",
     Callback = function()
-        local amount = Rayfield.Flags.MagnetBoxes.CurrentValue
+        local amount = Flags.MagnetBoxes.CurrentValue
         RemoteFunctions.Shop:InvokeServer({
             Command = "Buy",
             Type = "Item",
@@ -441,11 +586,8 @@ Inventory2:CreateSlider({
 
 Inventory2:CreateButton({
     Name = "💰 • Sell ​​all your inventory",
-    Callback = SellAllInventory 
+    Callback = SellInventory 
 })
-
-
-
 
 Inventory2:CreateSection("🎒 • Inventory")
 
@@ -454,7 +596,7 @@ if not Player:GetAttribute("OriginalMaxInventorySize") then
 end
 
 Inventory2:CreateToggle({
-    Name = "♾ • Infinite Backpack Capacity",
+    Name = "♾ • Infinite Backpack Capacity (PATCHED)",
     CurrentValue = false,
     Flag = "InfiniteCap",
     Callback = function(Value)
@@ -466,39 +608,37 @@ Inventory2:CreateToggle({
     end,
 })
 
--- PinMoles function and its handler
 local function PinMoles(Tool: Tool)
-    if not Rayfield.Flags.PinMoles.CurrentValue then
-        return
-    end
+	if not Flags.PinMoles.CurrentValue then
+		return
+	end
+	
+	if not Tool.Name:find("Mole") then
+		return
+	end
+	
+	if Tool:GetAttribute("Pinned") then
+		return
+	end
 
-    if not Tool.Name:find("Mole") then
-        return
-    end
-
-    if Tool:GetAttribute("Pinned") then
-        return
-    end
-
-    RemoteFunctions.Inventory:InvokeServer({
-        Command = "ToggleSlotPin",
-        UID = Tool:GetAttribute("ID")
-    })
+	RemoteFunctions.Inventory:InvokeServer({
+		Command = "ToggleSlotPin",
+		UID = Tool:GetAttribute("ID")
+	})
 end
 
 Inventory2:CreateToggle({
-    Name = "📌 • Auto Pin Moles",
-    CurrentValue = false,
-    Flag = "PinMoles",
-    Callback = function(Value)
-        if Value then
-            for _, Tool: Tool in Player.Backpack:GetChildren() do
-                PinMoles(Tool)
-            end
-        end
-    end,
+	Name = "📌 • Auto Pin Moles",
+	CurrentValue = false,
+	Flag = "PinMoles",
+	Callback = function(Value)
+		if Value then
+			for _, Tool: Tool in Player.Backpack:GetChildren() do
+				PinMoles(Tool)
+			end
+		end
+	end,
 })
-
 
 -- Seção Settings
 
@@ -512,7 +652,7 @@ local SellAllItemsBind = SettingsTab:CreateKeybind({
     CurrentKeybind = "G",
     HoldToInteract = false,
     Flag = "Keybind1",
-    Callback = SellAllInventory 
+    Callback = SellInventory 
 
  })
 
@@ -526,7 +666,31 @@ SettingsTab:CreateButton({
     end,
 })
 
+SettingsTab:CreateSection("AFK")
 
+
+SettingsTab:CreateToggle({
+		Name = "🔒 • Anti AFK Disconnection",
+		CurrentValue = true,
+		Flag = "AntiAFK",
+		Callback = function(Value)
+		end,
+	})
+
+	if getgenv().IdledConnection then
+		getgenv().IdledConnection:Disconnect()
+	end
+
+	getgenv().IdledConnection = Player.Idled:Connect(function()
+		if not Flags.AntiAFK.CurrentValue then
+			return
+		end
+
+		VirtualUser:CaptureController()
+		VirtualUser:ClickButton2(Vector2.zero)
+		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightMeta, false, game)
+		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightMeta, false, game)
+	end)
 
 
 
