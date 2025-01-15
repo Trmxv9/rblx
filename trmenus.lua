@@ -248,31 +248,36 @@ AutomationTab:CreateToggle({
     Name = "⛏️ • Auto Dig Close Piles (Faster)",
     CurrentValue = false,
     Flag = "Dig",
-    Callback = function(Value)
-        task.spawn(function()
-            while Rayfield.Flags.Dig.CurrentValue and task.wait() do
-                local DigMinigame = Player.PlayerGui.Main:FindFirstChild("DigMinigame")
-                if DigMinigame then
-                    DigMinigame.Cursor.Position = DigMinigame.Area.Position
-                end
-            end
-        end)
+	Callback = function(Value)
+		task.spawn(function()
+			while Rayfield.Flags.Dig.CurrentValue and task.wait() do
+				local DigMinigame = Player.PlayerGui.Main:FindFirstChild("DigMinigame")
 
-        while Rayfield.Flags.Dig.CurrentValue and task.wait() do
-            local tool = Player.Character:FindFirstChildOfClass("Tool")
-            if not tool then continue end;
-
-            local highlight = tool:FindFirstChild("Highlight")
-            if not highlight or not highlight.Adornee or highlight.Adornee.Parent ~= workspace.Map.TreasurePiles then
-                continue
-            end
-
-            RemoteFunctions.Digging:InvokeServer({
-                Command = "DigPile",
-                TargetPileIndex = highlight.Adornee:GetAttribute("PileIndex")
-            })
-        end
-    end
+				if not DigMinigame then
+					continue
+				end
+				
+				DigMinigame.Cursor.Position = DigMinigame.Area.Position
+			end
+		end)
+		
+		while Rayfield.Flags.Dig.CurrentValue and task.wait() do
+			if not Player.Character:FindFirstChildOfClass("Tool") then
+				continue
+			end
+			
+			local Adornee = Player.Character.Shovel.Highlight.Adornee
+			
+			if not Adornee or Adornee.Parent ~= workspace.Map.TreasurePiles then
+				continue
+			end
+			
+			RemoteFunctions.Digging:InvokeServer({
+				Command = "DigPile",
+				TargetPileIndex = Adornee:GetAttribute("PileIndex")
+			})
+		end
+	end,
 })
 
 AutomationTab:CreateSection("🤖 • Auto Click")
