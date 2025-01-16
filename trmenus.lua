@@ -472,27 +472,33 @@ AutomationTab:CreateToggle({
 AutomationTab:CreateSection("🎒 • Items")
 
 AutomationTab:CreateToggle({
-    Name = "💸 • Auto Open Magnet Boxes",
+    Name = "💸 • Auto Open Specific Boxes",
     CurrentValue = false,
-    Flag = "OpenMagnet",
+    Flag = "OpenBoxes",
     Callback = function(Value)
-        while Flags.OpenMagnet.CurrentValue and task.wait() do
+        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present" } 
+        while Flags.OpenBoxes.CurrentValue and task.wait() do
             local count = 0
             for _, Tool in ipairs(Player.Backpack:GetChildren()) do
-                if Tool.Name:find("Magnet Box") then
-                    RemoteEvents.Treasure:FireServer({
-                        Command = "RedeemContainer",
-                        Container = Tool
-                    })
-                    count = count + 1
-                    if count >= 5 then
+                for _, boxName in ipairs(allowedBoxes) do
+                    if Tool.Name:find(boxName) then
+                        RemoteEvents.Treasure:FireServer({
+                            Command = "RedeemContainer",
+                            Container = Tool
+                        })
+                        count = count + 1
                         break
                     end
+                end
+                if count >= 5 then
+                    break
                 end
             end
         end
     end,
 })
+
+
 
 local CollectedRewards = {}
 
