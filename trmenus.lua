@@ -476,8 +476,8 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "OpenBoxes",
     Callback = function(Value)
-        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present" } 
-        while Flags.OpenBoxes.CurrentValue and task.wait() do
+        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present", "Benson's Safe", "Chest" } 
+        while Flags.OpenBoxes.CurrentValue do
             local count = 0
             for _, Tool in ipairs(Player.Backpack:GetChildren()) do
                 for _, boxName in ipairs(allowedBoxes) do
@@ -493,6 +493,11 @@ AutomationTab:CreateToggle({
                 if count >= 5 then
                     break
                 end
+            end
+            if count == 0 then
+                task.wait(1) -- Espera 1 segundo se não encontrar containers, para evitar loop excessivo
+            else
+                task.wait(0.1) -- Delay menor se encontrar containers
             end
         end
     end,
