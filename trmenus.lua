@@ -240,7 +240,6 @@ local function ToggleSubZonesMarkers(toggleState)
 end
 
 
-
 -- End Functions
 
 local IslandsTab = Window:CreateTab("Ilhas", "tree-palm")
@@ -574,24 +573,6 @@ AutomationTab:CreateSlider({
 	Callback = function()end,
 })
 
-AutomationTab:CreateSection("⭐ • XP")
-
-AutomationTab:CreateToggle({
-	Name = "🆙 • Auto EXP Dupe",
-	CurrentValue = false,
-	Flag = "EXPDupe",
-	Callback = function(Value)
-		while Flags.EXPDupe.CurrentValue and task.wait() do
-			RemoteFunctions.Shop:InvokeServer({
-				Command = "Buy",
-				Type = "Item",
-				Product = "Biodegradable Shovel",
-				Amount = 5
-			})
-		end
-	end,
-})
-
 
 AutomationTab:CreateSection("🎒 • Items")
 
@@ -600,7 +581,28 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "OpenBoxes",
     Callback = function(Value)
-        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present", "Benson's Box", "Benson's Safe", "Chest" } 
+        local allowedBoxes = {
+            "Chest",
+            "Loot Bag",
+            "Crate",
+            "Magnet Box",
+            "Strange Vase",
+            "Sparkle Flask",
+            "Gift of Labor",
+            "Gift of Voyage",
+            "Gift of Elves",
+            "Frozen Container",
+            "Pinata Box",
+            "Frozen Magnet Box",
+            "Piggy Bank",
+            "Benson's Present",
+            "Benson's Royal Crate",
+            "Benson's Safe",
+            "Benson's Box",
+            "Gift of Dragons",
+            "Gift of Abundance",
+            "Gift of Fortune",
+        }        
         while Flags.OpenBoxes.CurrentValue do
             local count = 0
             for _, Tool in ipairs(Player.Backpack:GetChildren()) do
@@ -724,31 +726,54 @@ Inventory2:CreateButton({
     Callback = SellInventory 
 })
 
-Inventory2:CreateSection("🎒 • Inventory")
 
-if not Player:GetAttribute("OriginalMaxInventorySize") then
-    Player:SetAttribute("OriginalMaxInventorySize", Player:GetAttribute("MaxInventorySize"))
-end
+Inventory2:CreateSection("🎒 • Items")
 
 Inventory2:CreateToggle({
-    Name = "♾ • Infinite Backpack Capacity (PATCHED)",
-    CurrentValue = false,
-    Flag = "InfiniteCap",
-    Callback = function(Value)
-        if Value then
-            Player:SetAttribute("MaxInventorySize", 1e5)
-        else
-            Player:SetAttribute("MaxInventorySize", Player:GetAttribute("OriginalMaxInventorySize"))
-        end
-    end,
+	Name = "🏧 • Auto Bank Certain Items",
+	CurrentValue = false,
+	Flag = "BankItems",
+	Callback = function(Value)
+		while Flags.BankItems.CurrentValue and task.wait() do	
+			for _, Item: string in Flags.ItemsToBank.CurrentOption do
+				local Tool = Player.Backpack:FindFirstChild(Item)
+				
+				if not Tool then
+					continue
+				end
+				
+				RemoteFunctions.Inventory:InvokeServer({
+					Command = "MoveToBank",
+					UID = Tool:GetAttribute("ID")
+				})
+			end
+		end
+	end,
 })
 
-local function PinMoles(Tool: Tool)
-	if not Flags.PinMoles.CurrentValue then
+local Items = {}
+
+for i,v in ReplicatedStorage.Settings.Items.Treasures:GetChildren() do
+	table.insert(Items, v.Name)
+end
+
+table.sort(Items)
+
+Inventory2:CreateDropdown({
+	Name = "🏧 • Items to Bank",
+	Options = Items,
+	MultipleOptions = true,
+	Flag = "ItemsToBank",
+	Callback = function()end,
+})
+
+
+local function PinItems(Tool: Tool)
+	if not Flags.PinItems.CurrentValue then
 		return
 	end
 	
-	if not Tool.Name:find("Mole") then
+	if not table.find(Flags.ItemsToPin.CurrentOption, Tool.Name) then
 		return
 	end
 	
@@ -756,24 +781,237 @@ local function PinMoles(Tool: Tool)
 		return
 	end
 
-	RemoteFunctions.Inventory:InvokeServer({
+	local Result = RemoteFunctions.Inventory:InvokeServer({
 		Command = "ToggleSlotPin",
 		UID = Tool:GetAttribute("ID")
 	})
+
+	if Result then
+		Tool:SetAttribute("Pinned", not Tool:GetAttribute("Pinned"))
+	end
 end
 
+
 Inventory2:CreateToggle({
-	Name = "📌 • Auto Pin Moles",
+	Name = "📌 • Auto Pin Items",
 	CurrentValue = false,
-	Flag = "PinMoles",
+	Flag = "PinItems",
 	Callback = function(Value)
 		if Value then
 			for _, Tool: Tool in Player.Backpack:GetChildren() do
-				PinMoles(Tool)
+				PinItems(Tool)
 			end
 		end
 	end,
 })
+
+Inventory2:CreateDropdown({
+	Name = "📌 • Items to Pin",
+	Options = Items,
+	MultipleOptions = true,
+	Flag = "ItemsToPin",
+	Callback = function()end,
+})
+
+
+Inventory2:CreateButton({
+    Name = "🔍 • Quick Appraise Held Item [" .. RemoteFunctions.LootPit:InvokeServer({Command = "GetPlayerPrice"}) .. "]",
+    Callback = function()
+        RemoteFunctions.LootPit:InvokeServer({
+            Command = "AppraiseItem"
+        })
+    end,
+})
+
+Inventory2:CreateButton({
+    Name = "🌟 • Quick Enchant Shovel",
+    Callback = function()
+        local Backpack = Player.Backpack
+        local Mole = Backpack:FindFirstChild("Mole") or Backpack:FindFirstChild("Royal Mole")
+
+        if not Mole then
+            Rayfield:Notify({
+                Title = "Item Ausente",
+                Content = "Você não tem uma Mole ou Royal Mole.",
+                Duration = 5,
+                Image = "ban"  -- Ícone de erro padrão
+            })
+            return
+        end
+
+        local Shovel = nil
+        for _, Item in Backpack:GetChildren() do
+            if Item:GetAttribute("Type") == "Shovel" then
+                Shovel = Item
+                break
+            end
+        end
+
+        if not Shovel then
+            Rayfield:Notify({
+                Title = "Item Ausente",
+                Content = "Você não tem uma pá para encantar.",
+                Duration = 5,
+                Image = "ban"  -- Ícone de erro padrão
+            })
+            return
+        end
+
+        -- Oferecendo a Mole para encantar
+        local EnchantResult = RemoteFunctions.MolePit:InvokeServer({
+            Command = "OfferEnchant",
+            ID = Mole:GetAttribute("ID")
+        })
+
+        if EnchantResult ~= true then
+            Rayfield:Notify({
+                Title = "Erro",
+                Content = "Falha ao oferecer a Mole.",
+                Duration = 5,
+                Image = "ban"  -- Ícone de erro padrão
+            })
+            return
+        end
+
+        -- Oferecendo a Pá para encantamento
+        local ShovelResult = RemoteFunctions.MolePit:InvokeServer({
+            Command = "OfferShovel",
+            ID = Shovel:GetAttribute("ID")
+        })
+
+        if ShovelResult ~= true then
+            Rayfield:Notify({
+                Title = "Erro",
+                Content = "Falha ao oferecer a Pá.",
+                Duration = 5,
+                Image = "ban"  -- Ícone de erro padrão
+            })
+            return
+        end
+
+        Rayfield:Notify({
+            Title = "Sucesso",
+            Content = "Sua pá foi encantada com sucesso!",
+            Duration = 5,
+            Image = "circle-check"  -- Ícone de sucesso
+        })
+    end,
+})
+
+Inventory2:CreateSection("🎁 • Codes")
+
+Inventory2:CreateButton({
+    Name = "🐦 • Resgatar Códigos Conhecidos",
+    Callback = function()
+        -- Lista de códigos a serem resgatados
+        local Codes = {
+            "PLSMOLE",
+            "LUNARV2",
+            "TWITTER_DIGITRBLX",
+            "5MILLION",
+        }
+
+        -- Iterar sobre os códigos e resgatar um a um
+        for _, Code in ipairs(Codes) do
+            local Result = RemoteFunctions.Codes:InvokeServer({
+                Command = "Redeem",
+                Code = Code
+            })
+
+            -- Exibir a notificação correspondente ao status do código
+            if Result.Status then
+                Rayfield:Notify({
+                    Title = "Sucesso!",
+                    Content = "O código '" .. Code .. "' foi resgatado com sucesso.",
+                    Duration = 5,
+                    Image = "check-circle"
+                })
+            elseif Result.AlreadyRedeemed then
+                Rayfield:Notify({
+                    Title = "Falha!",
+                    Content = "O código '" .. Code .. "' já foi resgatado.",
+                    Duration = 5,
+                    Image = "ban"
+                })
+            elseif Result.NotValid then
+                Rayfield:Notify({
+                    Title = "Falha!",
+                    Content = "O código '" .. Code .. "' não é mais válido.",
+                    Duration = 5,
+                    Image = "ban"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Erro",
+                    Content = "O código '" .. Code .. "' teve um erro interno ao ser resgatado.",
+                    Duration = 5,
+                    Image = "ban"
+                })
+            end
+        end
+    end,
+})
+
+Inventory2:CreateSection("🏦 • Bank")
+
+local OpenBankHook
+local MoveToBankHook
+local AlreadyWaiting = false
+
+Inventory2:CreateToggle({
+    Name = "🏦 • Bank Anywhere",
+    CurrentValue = false,
+    Flag = "Bank",
+    Callback = function(Value)
+        if Value then
+            -- Aguardar para abrir o banco ou fazer ações necessárias
+            if not OpenBankHook then
+                OpenBankHook = hookmetamethod(RemoteFunctions.Marketplace, "__namecall", function(self, ...)
+                    local method = getnamecallmethod()
+                    local args = {...}
+
+                    -- Ignorar chamadas ao método "OwnsProduct" quando não for relevante
+                    if not checkcaller() and method == "InvokeServer" and args[1].Command == "OwnsProduct" and args[1].Product == "Store Anywhere" then
+                        return true
+                    end
+
+                    return OpenBankHook(self, ...)
+                end)
+            end
+
+            -- Para mover para o banco
+            if not MoveToBankHook then
+                MoveToBankHook = hookmetamethod(RemoteFunctions.Inventory, "__namecall", function(self, ...)
+                    local method = getnamecallmethod()
+                    local args = {...}
+
+                    if method == "InvokeServer" and args[1].Command == "MoveToBank" then
+                        local Character = Player.Character
+                        local PreviousPosition = Character:GetPivot()
+
+                        -- Aqui se moverá para o banco de forma segura
+                        repeat
+                            Character:PivotTo(workspace.Map.Islands.Nookville.BackpackIsland.Ronald:GetPivot())
+                            self:InvokeServer(args[1])
+                        until true  -- Loop de repetição seguro
+                    end
+
+                    return MoveToBankHook(self, ...)
+                end)
+            end
+        else
+            -- Desconectar qualquer hook/metamethod ativo para evitar problemas
+            if OpenBankHook then
+                OpenBankHook:Disconnect()
+            end
+
+            if MoveToBankHook then
+                MoveToBankHook:Disconnect()
+            end
+        end
+    end,
+})
+
 
 -- Seção Settings
 
@@ -830,6 +1068,9 @@ SettingsTab:CreateToggle({
 
 -- HandleConnection
 
+
+HandleConnection(Player.Backpack.ChildAdded:Connect(PinItems), "PinItems")
+
 HandleConnection(workspace.Map.Temporary.ChildAdded:Connect(MeteorIslandTeleport), "Meteor")
 HandleConnection(workspace.Map.Temporary.ChildRemoved:Connect(function(Child: Model?)
     if Child.Name == "Meteor Island" and PreviousLocation then
@@ -843,8 +1084,3 @@ HandleConnection(workspace.Map.Islands.ChildRemoved:Connect(function(Child: Mode
         Player.Character:PivotTo(PreviousLocation)
     end
 end), "LunarCloudsRemoved")
-
-
-HandleConnection(Player.Backpack.ChildAdded:Connect(function(child)
-    PinMoles(child)
-end), "PinMoles")
