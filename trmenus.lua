@@ -909,6 +909,7 @@ Inventory2:CreateButton({
             "LUNARV2",
             "TWITTER_DIGITRBLX",
             "5MILLION",
+			"SECRET",
         }
 
         -- Iterar sobre os códigos e resgatar um a um
