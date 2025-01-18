@@ -1,7 +1,5 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-
-
 local Window = Rayfield:CreateWindow({
     Name = "TR Menus - Dig It v1 - Beta",
     Icon = "shovel",
@@ -26,7 +24,6 @@ local Window = Rayfield:CreateWindow({
 
     KeySystem = false
 })
-
 
 Rayfield:Notify({
         Title = "💰 • Welcome to TR Menus",
@@ -130,6 +127,121 @@ local function SellInventory()
     })
 end
 
+
+local activeMarkers = {} 
+
+local function ToggleSubZonesMarkers(toggleState)
+    local SubZones = workspace.Map:WaitForChild("Subzones")
+    local markersFolder = workspace:FindFirstChild("ZoneMarkers") or Instance.new("Folder", workspace)
+
+    if not markersFolder then
+        markersFolder = Instance.new("Folder", workspace)
+        markersFolder.Name = "ZoneMarkers"
+    end
+
+    if toggleState then
+        Rayfield:Notify({
+            Title = "🤳 • Treasure Scanner",
+            Content = "Activated Treasure Scanner!",
+            Duration = 6.5,
+            Image = "message-circle-warning",
+        })
+
+        for _, zone in ipairs(SubZones:GetChildren()) do
+            if zone:IsA("BasePart") then
+                if activeMarkers[zone.Name] then
+                    continue
+                end
+
+                local digZone = Instance.new("Part")
+                digZone.Name = zone.Name .. "_DigZone"
+                digZone.Size = zone.Size
+                digZone.CFrame = zone.CFrame
+                digZone.Color = zone.Color or Color3.new(1, 1, 1)
+                digZone.Transparency = 0.5
+                digZone.Anchored = true
+                digZone.CanCollide = false
+                digZone.Parent = markersFolder
+
+                local fillPart = Instance.new("Part")
+                fillPart.Name = zone.Name .. "_FillPart"
+                fillPart.Shape = Enum.PartType.Cylinder
+                fillPart.Size = Vector3.new(zone.Size.X, 0.1, zone.Size.Z)
+                fillPart.CFrame = zone.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+                fillPart.Color = zone.Color or Color3.new(1, 1, 1)
+                fillPart.Anchored = true
+                fillPart.CanCollide = false
+                fillPart.Parent = markersFolder
+
+                activeMarkers[zone.Name] = {digZone, fillPart}
+
+                local overhead = zone:FindFirstChild("Overhead")
+                if overhead and overhead:FindFirstChild("Text") then
+                    local overheadText = overhead:FindFirstChild("Text").Text
+
+                    local billboardGui = Instance.new("BillboardGui")
+                    billboardGui.Name = zone.Name .. "_OverheadText"
+                    billboardGui.Size = UDim2.new(0, 150, 0, 40)
+                    billboardGui.StudsOffset = Vector3.new(0, 5, 0)
+                    billboardGui.AlwaysOnTop = true
+                    billboardGui.Enabled = true
+                    billboardGui.Parent = zone
+
+                    local textLabel = Instance.new("TextLabel")
+                    textLabel.Text = overheadText
+                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                    textLabel.BackgroundTransparency = 1
+                    textLabel.TextScaled = true
+                    textLabel.TextColor3 = zone.Color or Color3.new(1, 1, 1)
+                    textLabel.Font = Enum.Font.GothamBold
+                    textLabel.Parent = billboardGui
+
+                    task.spawn(function()
+                        while toggleState do
+                            local player = game.Players.LocalPlayer
+                            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                                local playerPosition = player.Character.HumanoidRootPart.Position
+                                local zonePosition = zone.Position
+                                local distance = (playerPosition - zonePosition).Magnitude
+
+                                local maxDistance = 50
+                                billboardGui.Enabled = distance <= maxDistance
+                            end
+                            task.wait(0.5)
+                        end
+                    end)
+                end
+            end
+        end
+    else
+
+        Rayfield:Notify({
+            Title = "🤳 • Treasure Scanner",
+            Content = "Disabled Treasure Scanner!",
+            Duration = 6.5,
+            Image = "message-circle-warning",
+        })
+
+        for _, markers in pairs(activeMarkers) do
+            for _, marker in ipairs(markers) do
+                marker:Destroy()
+            end
+        end
+
+        activeMarkers = {}
+
+        for _, zone in ipairs(SubZones:GetChildren()) do
+            local billboardGui = zone:FindFirstChild(zone.Name .. "_OverheadText")
+            if billboardGui then
+                billboardGui:Destroy()
+            end
+        end
+    end
+end
+
+
+
+-- End Functions
 
 local IslandsTab = Window:CreateTab("Ilhas", "tree-palm")
 
@@ -240,6 +352,18 @@ IslandsTab:CreateToggle({
         elseif PreviousLocation then
             Player.Character:PivotTo(PreviousLocation)
         end
+    end,
+})
+
+-- Criar aba e toggle pra marcar SubZones
+IslandsTab:CreateSection("📍 • Treasure Scanner")
+
+IslandsTab:CreateToggle({
+    Name = "📍 • Treasure Scanner",
+    CurrentValue = false,
+    Flag = "SubZonesMarkers",
+    Callback = function(Value)
+        ToggleSubZonesMarkers(Value)
     end,
 })
 
@@ -476,7 +600,7 @@ AutomationTab:CreateToggle({
     CurrentValue = false,
     Flag = "OpenBoxes",
     Callback = function(Value)
-        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present", "Benson's Safe", "Chest" } 
+        local allowedBoxes = { "Magnet Box", "Frozen Container", "Sparkle Flask", "Crate", "Benson's Present", "Benson's Box", "Benson's Safe", "Chest" } 
         while Flags.OpenBoxes.CurrentValue do
             local count = 0
             for _, Tool in ipairs(Player.Backpack:GetChildren()) do
@@ -702,7 +826,6 @@ SettingsTab:CreateToggle({
 		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightMeta, false, game)
 		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightMeta, false, game)
 	end)
-
 
 
 -- HandleConnection
