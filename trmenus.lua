@@ -910,6 +910,8 @@ Inventory2:CreateButton({
             "TWITTER_DIGITRBLX",
             "5MILLION",
 			"SECRET",
+            "300KLIKES",
+            "12MVISITS",
         }
 
         -- Iterar sobre os códigos e resgatar um a um
