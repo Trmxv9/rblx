@@ -44,7 +44,13 @@ local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local getgenv = getfenv().getgenv
 
+
 local Flags: {[string]: {["CurrentValue"]: any}} = Rayfield.Flags
+
+local Players = game:GetService("Players")
+local playerAddedConnection
+local charConnections = {}
+
 
 -- Função de teleporte
 local function teleport(position)
@@ -1067,6 +1073,129 @@ SettingsTab:CreateToggle({
 		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightMeta, false, game)
 		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightMeta, false, game)
 	end)
+
+
+
+SettingsTab:CreateSection("🛠️ • ESP Admin, Users")
+
+local function showStyledMessage()
+    for _, p in pairs(Players:GetPlayers()) do
+        local pg = p:FindFirstChild("PlayerGui")
+        if pg then
+            local sg = Instance.new("ScreenGui")
+            sg.Name = "ESPMessageGui"
+            sg.Parent = pg
+            local f = Instance.new("Frame")
+            f.Size = UDim2.new(0.4,0,0.2,0)
+            f.Position = UDim2.new(0.3,0,0.4,0)
+            f.BackgroundColor3 = Color3.new(0,0,0)
+            f.BackgroundTransparency = 1.3
+            f.BorderSizePixel = 0
+            f.Parent = sg
+            local t = Instance.new("TextLabel")
+            t.Size = UDim2.new(1,0,1,0)
+            t.BackgroundTransparency = 1
+            t.Font = Enum.Font.GothamBold
+            t.TextSize = 36
+            t.TextColor3 = Color3.new(1,1,1)
+            t.TextStrokeTransparency = 0
+            t.TextStrokeColor3 = Color3.new(0,0,0)
+            t.Text = "Credits BY MrTermux"
+            t.Parent = f
+            task.delay(5, function() if sg then sg:Destroy() end end)
+        end
+    end
+end
+
+local OwnerId = {7886244631, 4521292785, 127757949, 377630316, 726882757, 764674203}
+local GroupMod = {1491566187, 3554271545, 1815518060, 493436480, 56830849, 146940768, 221902318, 2615876399, 2355118820, 117368766, 176596654, 177013138, 1018981240, 204313140, 187722835}
+
+local function isInGroupMod(player, groups)
+    for _, groupId in ipairs(groups) do
+        if player:GetRankInGroup(groupId) >= 200 then
+            return true
+        end
+    end
+    return false
+end
+
+local function setNameTag(p, c)
+    local h = c:WaitForChild("Humanoid")
+    local isAdmin = isInGroupMod(p, GroupMod) or table.find(OwnerId, p.UserId)
+    h.DisplayName = (isAdmin and "[ADMIN] " or "[PLAYER] ")..p.Name
+    local head = c:WaitForChild("Head")
+    local bg = head:FindFirstChild("NameTag") or Instance.new("BillboardGui")
+    bg.Name = "NameTag"
+    bg.Size = UDim2.new(4,0,1,0)
+    bg.Adornee = head
+    bg.AlwaysOnTop = true
+    bg.StudsOffset = Vector3.new(0,4,0)
+    bg.Parent = head
+    local tl = bg:FindFirstChild("TextLabel") or Instance.new("TextLabel")
+    tl.Name = "TextLabel"
+    tl.Size = UDim2.new(1,0,1,0)
+    tl.BackgroundTransparency = 1
+    tl.TextScaled = true
+    tl.Font = Enum.Font.GothamBold
+    tl.TextColor3 = isAdmin and Color3.new(1,0,0) or Color3.new(0,1,0)
+    tl.TextStrokeTransparency = 0.5
+    tl.Text = p.Name
+    tl.Parent = bg
+end
+
+local function applyESP(p)
+    charConnections[p] = p.CharacterAdded:Connect(function(c)
+        setNameTag(p, c)
+    end)
+    if p.Character then setNameTag(p, p.Character) end
+end
+
+local function enableESP()
+    showStyledMessage()
+    for _, p in pairs(Players:GetPlayers()) do
+        applyESP(p)
+    end
+    playerAddedConnection = Players.PlayerAdded:Connect(function(p)
+        applyESP(p)
+    end)
+end
+
+local function disableESP()
+    if playerAddedConnection then
+        playerAddedConnection:Disconnect()
+        playerAddedConnection = nil
+    end
+    for p, c in pairs(charConnections) do
+        c:Disconnect()
+        charConnections[p] = nil
+        if p.Character and p.Character:FindFirstChild("Humanoid") then
+            p.Character.Humanoid.DisplayName = p.Name
+            local head = p.Character:FindFirstChild("Head")
+            if head and head:FindFirstChild("NameTag") then
+                head.NameTag:Destroy()
+            end
+        end
+    end
+    for _, p in pairs(Players:GetPlayers()) do
+        local pg = p:FindFirstChild("PlayerGui")
+        if pg and pg:FindFirstChild("ESPMessageGui") then
+            pg.ESPMessageGui:Destroy()
+        end
+    end
+end
+
+SettingsTab:CreateToggle({
+    Name = "🛠️ • ESP Admin",
+    CurrentValue = false,
+    Flag = "ESPAdmin",
+    Callback = function(v)
+        if v then
+            enableESP()
+        else
+            disableESP()
+        end
+    end
+})
 
 
 -- HandleConnection
