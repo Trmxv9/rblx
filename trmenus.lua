@@ -12,8 +12,8 @@ local Window = Rayfield:CreateWindow({
 
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = nil,
-        FileName = "Big Hub"
+        FolderName = "TRMenusDigit",
+        FileName = "TRMenusDigit"
     },
 
     Discord = {
