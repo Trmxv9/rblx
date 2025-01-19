@@ -1,3 +1,4 @@
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -12,25 +13,26 @@ local Window = Rayfield:CreateWindow({
 
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "TRMenusDigit",
-        FileName = "TRMenusDigit"
+        FolderName = nil,
+        FileName = "TRMenusDigIT"
     },
 
     Discord = {
         Enabled = true,
-        Invite = "https://discord.gg/rNAXhxN3hN",
+        Invite = "rNAXhxN3hN",
         RememberJoins = true
     },
 
     KeySystem = false
 })
 
+Rayfield:LoadConfiguration()
+
 Rayfield:Notify({
         Title = "💰 • Welcome to TR Menus",
         Content = "Enter our Discord!",
         Duration = 6.5,
         Image = "message-circle-warning",})
-
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
@@ -51,11 +53,24 @@ local Players = game:GetService("Players")
 local playerAddedConnection
 local charConnections = {}
 
+-- Função para notificar com mensagens
+local function notifyUser(title, content, duration, image)
+    Rayfield:Notify({
+        Title = title,
+        Content = content,
+        Duration = duration,
+        Image = image,
+    })
+end
+
 
 -- Função de teleporte
 local function teleport(position)
     if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        Player.Character.HumanoidRootPart.CFrame = CFrame.new(position)
+        local humanoidRootPart = Player.Character.HumanoidRootPart
+        if humanoidRootPart.CFrame.Position ~= position then
+            humanoidRootPart.CFrame = CFrame.new(position)
+        end
     else
         warn("Personagem ou HumanoidRootPart não encontrado!")
     end
@@ -73,65 +88,43 @@ end
 
 -- Functions 
 
-local function SellInventory()
-	local SellEnabled = Flags.Sell.CurrentValue
-	Player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+local function sellInventory()
+    if not Flags.Sell.CurrentValue then return end
 
-	local Capacity: TextLabel = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity
+    local Inventory = RemoteFunctions.Player:InvokeServer({ Command = "GetInventory" })
+    local AnyObjects = false
 
-	local Inventory: {[string]: {["Attributes"]: {["Weight"]: number}}} = RemoteFunctions.Player:InvokeServer({
-		Command = "GetInventory"
-	})
+    for _, Object in Inventory do
+        if Object.Attributes.Weight then
+            AnyObjects = true
+            break
+        end
+    end
 
-	local AnyObjects = false
+    if not AnyObjects then
+        task.wait(5)
+        return
+    end
 
-	for _, Object in Inventory do
-		if not Object.Attributes.Weight then
-			continue
-		end
+    local Merchant = workspace.Map.Islands:FindFirstChild("Merchant")
+    if not Merchant then
+        notifyUser("Erro", "Mercador não encontrado.", 5, "ban")
+        return
+    end
 
-		AnyObjects = true
-		break
-	end
+    local PreviousPosition = Player.Character:GetPivot()
+    local PreviousText = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity.Text
 
-	if not AnyObjects then
-		task.wait(5)
-		return
-	end
+    repeat
+        Player.Character:PivotTo(Merchant:GetPivot())
+        RemoteEvents.Merchant:FireServer({ Command = "SellAllTreasures", Merchant = Merchant })
+        task.wait(0.1)
+    until Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity.Text ~= PreviousText or not Flags.Sell.CurrentValue
 
-	for i,v: TextLabel in workspace.Map.Islands:GetDescendants() do
-		if v.Name ~= "Title" or not v:IsA("TextLabel") or v.Text ~= "Merchant" then
-			continue
-		end
-
-		local Merchant: Model = v.Parent.Parent
-
-		local PreviousPosition = Player.Character:GetPivot()
-
-		local PreviousText = Capacity.Text
-
-		repeat
-			Player.Character:PivotTo(Merchant:GetPivot())
-
-			RemoteEvents.Merchant:FireServer({
-				Command = "SellAllTreasures",
-				Merchant = Merchant
-			})
-
-			task.wait(0.1)
-		until Capacity.Text ~= PreviousText or Flags.Sell.CurrentValue ~= SellEnabled
-
-		Player.Character:PivotTo(PreviousPosition)
-
-		break
-	end
-    Rayfield:Notify({
-        Title = "💰 • Sell ​​all your inventory",
-        Content = "You sold all your items!",
-        Duration = 6.5,
-        Image = "message-circle-warning",
-    })
+    Player.Character:PivotTo(PreviousPosition)
+    notifyUser("💰 • Completed sale", "You sold all items!", 6.5, "check-circle")
 end
+
 
 
 local activeMarkers = {} 
