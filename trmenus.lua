@@ -34,6 +34,9 @@ Rayfield:Notify({
         Duration = 6.5,
         Image = "message-circle-warning",})
 
+
+local Flags: {[string]: {["CurrentValue"]: any, ["CurrentOption"]: {string}}} = Rayfield.Flags
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
 local Player = game:GetService("Players").LocalPlayer
@@ -46,8 +49,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local getgenv = getfenv().getgenv
 
-
-local Flags: {[string]: {["CurrentValue"]: any}} = Rayfield.Flags
 
 local Players = game:GetService("Players")
 local playerAddedConnection
@@ -87,45 +88,6 @@ end
 
 
 -- Functions 
-
-local function sellInventory()
-    if not Flags.Sell.CurrentValue then return end
-
-    local Inventory = RemoteFunctions.Player:InvokeServer({ Command = "GetInventory" })
-    local AnyObjects = false
-
-    for _, Object in Inventory do
-        if Object.Attributes.Weight then
-            AnyObjects = true
-            break
-        end
-    end
-
-    if not AnyObjects then
-        task.wait(5)
-        return
-    end
-
-    local Merchant = workspace.Map.Islands:FindFirstChild("Merchant")
-    if not Merchant then
-        notifyUser("Erro", "Mercador não encontrado.", 5, "ban")
-        return
-    end
-
-    local PreviousPosition = Player.Character:GetPivot()
-    local PreviousText = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity.Text
-
-    repeat
-        Player.Character:PivotTo(Merchant:GetPivot())
-        RemoteEvents.Merchant:FireServer({ Command = "SellAllTreasures", Merchant = Merchant })
-        task.wait(0.1)
-    until Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity.Text ~= PreviousText or not Flags.Sell.CurrentValue
-
-    Player.Character:PivotTo(PreviousPosition)
-    notifyUser("💰 • Completed sale", "You sold all items!", 6.5, "check-circle")
-end
-
-
 
 local activeMarkers = {} 
 
@@ -368,6 +330,7 @@ IslandsTab:CreateToggle({
 
 -- Automação de mineração
 local AutomationTab = Window:CreateTab("Automation", "repeat")
+
 AutomationTab:CreateSection("🛠️ • Digging")
 
 AutomationTab:CreateToggle({
@@ -405,8 +368,6 @@ AutomationTab:CreateToggle({
 		end
 	end,
 })
-
-AutomationTab:CreateSection("🤖 • Auto Farm")
 
 AutomationTab:CreateToggle({
     Name = "🕹️ • Auto Minigame | 100% Success",
@@ -448,6 +409,11 @@ AutomationTab:CreateToggle({
         end
     end,
 })
+
+
+
+AutomationTab:CreateSection("🤖 • Auto Farm")
+
 
 AutomationTab:CreateToggle({
     Name = "🕳️ • Auto Create Piles (Any Terrain)",
@@ -665,6 +631,61 @@ AutomationTab:CreateToggle({
     end,
 })
 
+local function GetInventorySize()
+	local Inventory: {[string]: {["Attributes"]: {["Weight"]: number}}} = RemoteFunctions.Player:InvokeServer({
+		Command = "GetInventory"
+	})
+
+	local InventorySize = 0
+
+	for ID, Object in Inventory do
+		InventorySize += 1
+	end
+
+	return InventorySize
+end
+
+function SellInventory()
+	Player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+	local Merchant: Model
+
+	for _,v: TextLabel in workspace.Map.Islands:GetDescendants() do
+		if v.Name ~= "Title" or not v:IsA("TextLabel") or v.Text ~= "Merchant" then
+			continue
+		end
+
+		Merchant = v.Parent.Parent
+
+		break
+	end
+
+	local SellEnabled = Flags.Sell.CurrentValue
+	local PreviousPosition = Player.Character:GetPivot()
+	local PreviousSize = GetInventorySize()
+
+	local Teleported = false
+
+	local StartTime = tick()
+
+	repeat
+		Player.Character:PivotTo(Merchant:GetPivot())
+
+		task.wait(1)
+
+		RemoteEvents.Merchant:FireServer({
+			Command = "SellAllTreasures",
+			Merchant = Merchant
+		})
+
+		Teleported = true
+	until GetInventorySize() ~= PreviousSize or Flags.Sell.CurrentValue ~= SellEnabled or tick() - StartTime >= 3
+
+	if Teleported then
+		Player.Character:PivotTo(PreviousPosition)
+	end
+end
+
 
 AutomationTab:CreateToggle({
 	Name = "💰 • Auto Sell Inventory at Max Capacity",
@@ -672,19 +693,14 @@ AutomationTab:CreateToggle({
 	Flag = "Sell",
 	Callback = function(Value)	
 		while Flags.Sell.CurrentValue and task.wait() do
-			local Capacity: TextLabel = Player.PlayerGui.Main.Core.Inventory.Disclaimer.Capacity
-			local Current = tonumber(Capacity.Text:split("(")[2]:split("/")[1])
-			local Max = tonumber(Capacity.Text:split(")")[1]:split("/")[2])
-
-			if Current < Max then
+			if GetInventorySize() < Player:GetAttribute("MaxInventorySize") + 9 then
 				continue
 			end
-			
+
 			SellInventory()
 		end
 	end,
 })
-
 
 
 -- Inventory Section
@@ -721,7 +737,7 @@ Inventory2:CreateSlider({
 })
 
 Inventory2:CreateButton({
-    Name = "💰 • Sell ​​all your inventory",
+    Name = "💰 • Quick Sell Inventory",
     Callback = SellInventory 
 })
 
@@ -1023,7 +1039,7 @@ local SettingsTab = Window:CreateTab("Settings", "settings")
 SettingsTab:CreateSection("🎮 • Keybinds (BETA)")
 
 local SellAllItemsBind = SettingsTab:CreateKeybind({
-    Name = "💰 • Sell ​​all your inventory",
+    Name = "💰 • Quick Sell Inventory",
     CurrentKeybind = "G",
     HoldToInteract = false,
     Flag = "Keybind1",
@@ -1179,7 +1195,7 @@ end
 
 SettingsTab:CreateToggle({
     Name = "🛠️ • ESP Admin",
-    CurrentValue = false,
+    CurrentValue = true,
     Flag = "ESPAdmin",
     Callback = function(v)
         if v then
@@ -1189,6 +1205,12 @@ SettingsTab:CreateToggle({
         end
     end
 })
+
+if Library.Flags["ESPAdmin"] then
+    enableESP()
+else
+    disableESP()
+end
 
 
 -- HandleConnection
